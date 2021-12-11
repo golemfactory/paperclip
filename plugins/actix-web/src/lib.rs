@@ -45,6 +45,22 @@ use parking_lot::RwLock;
 
 use std::{collections::BTreeMap, sync::Arc};
 
+#[cfg(feature = "actix4")]
+/// Extension trait for actix-web applications.
+pub trait OpenApiExt<T> {
+    type Wrapper;
+
+    /// Consumes this app and produces its wrapper to start tracking
+    /// paths and their corresponding operations.
+    fn wrap_api(self) -> Self::Wrapper;
+
+    /// Same as `wrap_api` initializing with provided specification
+    /// defaults. Useful for defining Api properties outside of definitions and
+    /// paths.
+    fn wrap_api_with_spec(self, spec: DefaultApiRaw) -> Self::Wrapper;
+}
+
+#[cfg(not(feature = "actix4"))]
 /// Extension trait for actix-web applications.
 pub trait OpenApiExt<T, B> {
     type Wrapper;
@@ -59,6 +75,26 @@ pub trait OpenApiExt<T, B> {
     fn wrap_api_with_spec(self, spec: DefaultApiRaw) -> Self::Wrapper;
 }
 
+#[cfg(feature = "actix4")]
+impl<T> OpenApiExt<T> for actix_web::App<T> {
+    type Wrapper = App<T>;
+
+    fn wrap_api(self) -> Self::Wrapper {
+        App {
+            spec: Arc::new(RwLock::new(DefaultApiRaw::default())),
+            inner: Some(self),
+        }
+    }
+
+    fn wrap_api_with_spec(self, spec: DefaultApiRaw) -> Self::Wrapper {
+        App {
+            spec: Arc::new(RwLock::new(spec)),
+            inner: Some(self),
+        }
+    }
+}
+
+#[cfg(not(feature = "actix4"))]
 impl<T, B> OpenApiExt<T, B> for actix_web::App<T, B> {
     type Wrapper = App<T, B>;
 

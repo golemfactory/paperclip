@@ -18,6 +18,7 @@ use super::{
     schema::{Apiv2Errors, Apiv2Operation, Apiv2Schema},
 };
 use actix_web::{
+    body::BoxBody,
     http::StatusCode,
     web::{Bytes, Data, Form, Json, Path, Payload, Query, ReqData},
     HttpRequest, HttpResponse, Responder,
@@ -460,8 +461,10 @@ impl<T: Responder> Apiv2Schema for ResponderWrapper<T> {}
 impl<T: Responder> OperationModifier for ResponderWrapper<T> {}
 
 impl<T: Responder> Responder for ResponderWrapper<T> {
+    type Body = T::Body;
+
     #[inline]
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         self.0.respond_to(req)
     }
 }
@@ -473,8 +476,10 @@ impl<T: Responder> Responder for ResponderWrapper<T> {
 pub struct ResponseWrapper<T, H>(#[pin] pub T, pub H);
 
 impl<T: Responder, H> Responder for ResponseWrapper<T, H> {
+    type Body = T::Body;
+
     #[inline]
-    fn respond_to(self, req: &HttpRequest) -> HttpResponse {
+    fn respond_to(self, req: &HttpRequest) -> HttpResponse<Self::Body> {
         self.0.respond_to(req)
     }
 }
@@ -602,7 +607,9 @@ macro_rules! json_with_status {
         where
             T: Serialize + Apiv2Schema,
         {
-            fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+            type Body = BoxBody;
+
+            fn respond_to(self, _: &HttpRequest) -> HttpResponse<BoxBody> {
                 let status: StatusCode = $status;
                 let body = match serde_json::to_string(&self.0) {
                     Ok(body) => body,
@@ -666,7 +673,9 @@ impl fmt::Display for NoContent {
 }
 
 impl Responder for NoContent {
-    fn respond_to(self, _: &HttpRequest) -> HttpResponse {
+    type Body = BoxBody;
+
+    fn respond_to(self, _: &HttpRequest) -> HttpResponse<BoxBody> {
         HttpResponse::build(StatusCode::NO_CONTENT)
             .content_type("application/json")
             .finish()

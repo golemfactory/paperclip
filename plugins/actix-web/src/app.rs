@@ -6,8 +6,10 @@ use super::{
 };
 use actix_service::ServiceFactory;
 use actix_web::{
-    dev::{HttpServiceFactory, MessageBody, ServiceRequest, ServiceResponse, Transform},
+    body::MessageBody,
+    dev::{HttpServiceFactory, ServiceRequest, ServiceResponse, Transform},
     HttpResponse, Error,
+    web::Data,
 };
 use futures::future::{ok as fut_ok, Ready};
 use paperclip_core::v2::models::{DefaultApiRaw, SecurityScheme};
@@ -16,12 +18,12 @@ use parking_lot::RwLock;
 use std::{fmt::Debug, future::Future, sync::Arc};
 
 /// Wrapper for [`actix_web::App`](https://docs.rs/actix-web/*/actix_web/struct.App.html).
-pub struct App<T, B> {
+pub struct App<T> {
     pub(super) spec: Arc<RwLock<DefaultApiRaw>>,
-    pub(super) inner: Option<actix_web::App<T, B>>,
+    pub(super) inner: Option<actix_web::App<T>>,
 }
 
-impl<T, B> App<T, B>
+impl<T, B> App<T>
 where
     B: MessageBody,
     T: ServiceFactory<
@@ -36,7 +38,7 @@ where
     ///
     /// **NOTE:** This doesn't affect spec generation.
     pub fn data<U: 'static>(mut self, data: U) -> Self {
-        self.inner = self.inner.take().map(|a| a.data(data));
+        self.inner = self.inner.take().map(|a| a.app_data(Data::new(data)));
         self
     }
 
@@ -139,8 +141,7 @@ where
             Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
-        >,
-        B1,
+        >
     >
     where
         M: Transform<
@@ -171,8 +172,7 @@ where
             Response = ServiceResponse<B1>,
             Error = Error,
             InitError = (),
-        >,
-        B1,
+        >
     >
     where
         B1: MessageBody,
@@ -213,7 +213,7 @@ where
     }
 
     /// Builds and returns the `actix_web::App`.
-    pub fn build(self) -> actix_web::App<T, B> {
+    pub fn build(self) -> actix_web::App<T> {
         self.inner.expect("missing app?")
     }
 
