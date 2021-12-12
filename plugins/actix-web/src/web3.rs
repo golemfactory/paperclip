@@ -1,16 +1,19 @@
 //! Proxy module for [`actix_web::web`](https://docs.rs/actix-web/*/actix_web/web/index.html).
-extern crate actix_service2 as actix_service;
-extern crate actix_web4 as actix_web;
+#![cfg(any(feature = "actix2", feature = "actix3"))]
 
+extern crate actix_service1 as actix_service;
+
+#[cfg(feature = "actix3")]
+pub use actix_web::web::ReqData;
 pub use actix_web::web::{
     block, service, to, Bytes, BytesMut, Data, Form, FormConfig, HttpRequest, HttpResponse, Json,
-    JsonConfig, Path, PathConfig, Payload, PayloadConfig, Query, QueryConfig, ReqData,
+    JsonConfig, Path, PathConfig, Payload, PayloadConfig, Query, QueryConfig,
 };
 
 use crate::Mountable;
-use actix_service::ServiceFactory;
+use actix_service::{IntoServiceFactory, ServiceFactory};
 use actix_web::{
-    dev::{AppService, Handler, HttpServiceFactory, ServiceRequest, ServiceResponse, Transform},
+    dev::{AppService, Factory, HttpServiceFactory, ServiceRequest, ServiceResponse, Transform},
     guard::Guard,
     http::Method,
     Error, FromRequest, Responder,
@@ -61,8 +64,8 @@ impl Resource {
 impl<T> HttpServiceFactory for Resource<actix_web::Resource<T>>
 where
     T: ServiceFactory<
-            ServiceRequest,
             Config = (),
+            Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),
@@ -70,6 +73,21 @@ where
 {
     fn register(self, config: &mut AppService) {
         self.inner.register(config)
+    }
+}
+
+impl<T> IntoServiceFactory<T> for Resource<actix_web::Resource<T>>
+where
+    T: ServiceFactory<
+            Config = (),
+            Request = ServiceRequest,
+            Response = ServiceResponse,
+            Error = Error,
+            InitError = (),
+        > + 'static,
+{
+    fn into_factory(self) -> T {
+        self.inner.into_factory()
     }
 }
 
@@ -94,8 +112,8 @@ impl<T> Mountable for Resource<T> {
 impl<T> Resource<actix_web::Resource<T>>
 where
     T: ServiceFactory<
-        ServiceRequest,
         Config = (),
+        Request = ServiceRequest,
         Response = ServiceResponse,
         Error = Error,
         InitError = (),
@@ -127,6 +145,14 @@ where
         self
     }
 
+    /// Proxy for [`actix_web::Resource::data`](https://docs.rs/actix-web/*/actix_web/struct.Resource.html#method.data).
+    ///
+    /// **NOTE:** This doesn't affect spec generation.
+    pub fn data<U: 'static>(mut self, data: U) -> Self {
+        self.inner = self.inner.data(data);
+        self
+    }
+
     /// Proxy for [`actix_web::Resource::app_data`](https://docs.rs/actix-web/*/actix_web/struct.Resource.html#method.app_data).
     ///
     /// **NOTE:** This doesn't affect spec generation.
@@ -139,7 +165,7 @@ where
     /// Wrapper for [`actix_web::Resource::to`](https://docs.rs/actix-web/*/actix_web/struct.Resource.html#method.to).
     pub fn to<F, I, R, U>(mut self, handler: F) -> Self
     where
-        F: Handler<I, R> + 'static,
+        F: Factory<I, R, U> + 'static,
         I: FromRequest + 'static,
         R: Apiv2Operation + Future<Output = U> + 'static,
         U: Responder + 'static,
@@ -158,8 +184,8 @@ where
     ) -> Resource<
         actix_web::Resource<
             impl ServiceFactory<
-                ServiceRequest,
                 Config = (),
+                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
                 InitError = (),
@@ -169,7 +195,7 @@ where
     where
         M: Transform<
             T::Service,
-            ServiceRequest,
+            Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),
@@ -193,8 +219,8 @@ where
     ) -> Resource<
         actix_web::Resource<
             impl ServiceFactory<
-                ServiceRequest,
                 Config = (),
+                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
                 InitError = (),
@@ -202,7 +228,7 @@ where
         >,
     >
     where
-        F: Fn(ServiceRequest, &T::Service) -> R + Clone,
+        F: FnMut(ServiceRequest, &mut T::Service) -> R + Clone,
         R: Future<Output = Result<ServiceResponse, Error>>,
     {
         Resource {
@@ -219,10 +245,10 @@ where
     /// **NOTE:** This doesn't affect spec generation.
     pub fn default_service<F, U>(mut self, f: F) -> Self
     where
-        F: actix_service::IntoServiceFactory<U, ServiceRequest>,
+        F: actix_service::IntoServiceFactory<U>,
         U: ServiceFactory<
-                ServiceRequest,
                 Config = (),
+                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
                 InitError = (),
@@ -281,8 +307,8 @@ impl Scope {
 impl<T> HttpServiceFactory for Scope<actix_web::Scope<T>>
 where
     T: ServiceFactory<
-            ServiceRequest,
             Config = (),
+            Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),
@@ -298,8 +324,8 @@ where
 impl<T> Scope<actix_web::Scope<T>>
 where
     T: ServiceFactory<
-        ServiceRequest,
         Config = (),
+        Request = ServiceRequest,
         Response = ServiceResponse,
         Error = Error,
         InitError = (),
@@ -310,6 +336,14 @@ where
     /// **NOTE:** This doesn't affect spec generation.
     pub fn guard<G: Guard + 'static>(mut self, guard: G) -> Self {
         self.inner = self.inner.take().map(|s| s.guard(guard));
+        self
+    }
+
+    /// Proxy for [`actix_web::Scope::data`](https://docs.rs/actix-web/*/actix_web/struct.Scope.html#method.data).
+    ///
+    /// **NOTE:** This doesn't affect spec generation.
+    pub fn data<U: 'static>(mut self, data: U) -> Self {
+        self.inner = self.inner.take().map(|s| s.data(data));
         self
     }
 
@@ -359,10 +393,10 @@ where
     /// **NOTE:** This doesn't affect spec generation.
     pub fn default_service<F, U>(mut self, f: F) -> Self
     where
-        F: actix_service::IntoServiceFactory<U, ServiceRequest>,
+        F: actix_service::IntoServiceFactory<U>,
         U: ServiceFactory<
-                ServiceRequest,
                 Config = (),
+                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
                 InitError = (),
@@ -382,8 +416,8 @@ where
     ) -> Scope<
         actix_web::Scope<
             impl ServiceFactory<
-                ServiceRequest,
                 Config = (),
+                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
                 InitError = (),
@@ -393,7 +427,7 @@ where
     where
         M: Transform<
             T::Service,
-            ServiceRequest,
+            Request = ServiceRequest,
             Response = ServiceResponse,
             Error = Error,
             InitError = (),
@@ -417,8 +451,8 @@ where
     ) -> Scope<
         actix_web::Scope<
             impl ServiceFactory<
-                ServiceRequest,
                 Config = (),
+                Request = ServiceRequest,
                 Response = ServiceResponse,
                 Error = Error,
                 InitError = (),
@@ -426,7 +460,7 @@ where
         >,
     >
     where
-        F: Fn(ServiceRequest, &T::Service) -> R + Clone,
+        F: FnMut(ServiceRequest, &mut T::Service) -> R + Clone,
         R: Future<Output = Result<ServiceResponse, Error>>,
     {
         Scope {
@@ -500,13 +534,14 @@ pub struct Route {
     inner: actix_web::Route,
 }
 
-impl ServiceFactory<ServiceRequest> for Route {
+impl ServiceFactory for Route {
     type Config = ();
+    type Request = ServiceRequest;
     type Response = ServiceResponse;
     type Error = Error;
     type InitError = ();
-    type Service = <actix_web::Route as ServiceFactory<ServiceRequest>>::Service;
-    type Future = <actix_web::Route as ServiceFactory<ServiceRequest>>::Future;
+    type Service = <actix_web::Route as ServiceFactory>::Service;
+    type Future = <actix_web::Route as ServiceFactory>::Future;
 
     #[allow(clippy::unit_arg)]
     fn new_service(&self, cfg: Self::Config) -> Self::Future {
@@ -545,7 +580,7 @@ impl Route {
     /// Wrapper for [`actix_web::Route::to`](https://docs.rs/actix-web/*/actix_web/struct.Route.html#method.to)
     pub fn to<F, I, R, U>(mut self, handler: F) -> Self
     where
-        F: Handler<I, R>,
+        F: Factory<I, R, U>,
         I: FromRequest + 'static,
         R: Apiv2Operation + Future<Output = U> + 'static,
         U: Responder + 'static,
