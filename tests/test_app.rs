@@ -3,10 +3,27 @@ extern crate serde;
 #[macro_use]
 extern crate serde_json;
 
+#[cfg(not(feature = "actix4"))]
+extern crate actix_service1 as actix_service;
+#[cfg(feature = "actix4")]
+extern crate actix_service2 as actix_service;
+
+#[cfg(feature = "actix2")]
+extern crate actix_web2 as actix_web;
+#[cfg(feature = "actix3")]
+extern crate actix_web3 as actix_web;
+#[cfg(feature = "actix4")]
+extern crate actix_web4 as actix_web;
+
+#[cfg(not(feature = "actix4"))]
+use actix_web::dev::MessageBody;
+#[cfg(feature = "actix4")]
+use actix_web::body::{BoxBody, MessageBody};
+
 use actix_rt::System;
 use actix_service::ServiceFactory;
 use actix_web::{
-    dev::{MessageBody, Payload, ServiceRequest, ServiceResponse},
+    dev::{Payload, ServiceRequest, ServiceResponse},
     App, Error, FromRequest, HttpRequest, HttpServer, Responder,
 };
 use futures::future::{ok as fut_ok, ready, Future, Ready};
@@ -68,6 +85,21 @@ impl Default for Pet {
     }
 }
 
+#[cfg(feature = "actix4")]
+impl Responder for Pet {
+  type Body = BoxBody;
+
+  fn respond_to(self, _req: &HttpRequest) -> actix_web::HttpResponse {
+      let body = serde_json::to_string(&self).unwrap();
+
+      // Create response and set content type
+      actix_web::HttpResponse::Ok()
+          .content_type("application/json")
+          .body(body)
+  }
+}
+
+#[cfg(not(feature = "actix4"))]
 impl Responder for Pet {
     type Error = Error;
     type Future = Ready<Result<actix_web::HttpResponse, Error>>;
@@ -111,7 +143,7 @@ fn test_simple_app() {
     }
 
     #[api_v2_operation]
-    async fn adopt_pet() -> Result<CreatedJson<Pet>, ()> {
+    async fn adopt_pet() -> Result<CreatedJson<Pet>, Error> {
         let pet: Pet = Pet::default();
         Ok(CreatedJson(pet))
     }
@@ -435,7 +467,7 @@ fn test_params() {
     #[api_v2_operation]
     fn get_known_badge_3(
         _p: web::Path<KnownBadgeId>,
-    ) -> impl Future<Output = Result<web::Json<KnownBadgeId>, ()>> {
+    ) -> impl Future<Output = Result<web::Json<KnownBadgeId>, Error>> {
         futures::future::ok(web::Json(KnownBadgeId("id".into())))
     }
 
@@ -1222,7 +1254,7 @@ fn test_serde_flatten() {
     }
 
     #[api_v2_operation]
-    async fn some_images(_filter: web::Query<ImagesQuery>) -> Result<web::Json<Images>, ()> {
+    async fn some_images(_filter: web::Query<ImagesQuery>) -> Result<web::Json<Images>, Error> {
         #[allow(unreachable_code)]
         if _filter.paging.offset.is_some() && _filter.name.is_some() {
             unimplemented!()
@@ -1374,7 +1406,7 @@ fn test_serde_skip() {
 
     #[post("/v0/pets")]
     #[api_v2_operation]
-    fn post_pet(pet: web::Json<Pet>) -> impl Future<Output = Result<web::Json<Pet>, ()>> {
+    fn post_pet(pet: web::Json<Pet>) -> impl Future<Output = Result<web::Json<Pet>, Error>> {
         futures::future::ready(Ok(pet))
     }
 
@@ -1717,13 +1749,13 @@ fn test_impl_traits() {
     fn get_pets(
         _data: web::Data<String>,
         _q: web::Query<Params>,
-    ) -> impl Future<Output = Result<web::Json<Vec<Pet>>, ()>> {
+    ) -> impl Future<Output = Result<web::Json<Vec<Pet>>, Error>> {
         if true {
             // test for return in wrapper blocks (#75)
-            return futures::future::err(());
+            return futures::future::err(actix_web::error::ErrorInternalServerError(""));
         }
 
-        futures::future::err(())
+        futures::future::err(actix_web::error::ErrorInternalServerError(""))
     }
 
     #[api_v2_operation]
@@ -1841,19 +1873,19 @@ fn test_operation_with_generics() {
     #[api_v2_operation]
     fn get_pet_by_id<I: paperclip::v2::schema::Apiv2Schema>(
         _path: web::Path<I>,
-    ) -> impl Future<Output = Result<web::Json<Vec<Pet>>, ()>> {
+    ) -> impl Future<Output = Result<web::Json<Vec<Pet>>, Error>> {
         futures::future::ok(web::Json(vec![Pet::default()]))
     }
 
     #[api_v2_operation]
     async fn get_pet_by_name<S: paperclip::v2::schema::Apiv2Schema + ToString>(
         _path: web::Path<S>,
-    ) -> Result<web::Json<Vec<Pet>>, ()> {
+    ) -> Result<web::Json<Vec<Pet>>, Error> {
         Ok(web::Json(vec![Pet::default()]))
     }
 
     #[api_v2_operation]
-    async fn get_pet_by_type<S>(_path: web::Path<S>) -> Result<web::Json<Vec<Pet>>, ()>
+    async fn get_pet_by_type<S>(_path: web::Path<S>) -> Result<web::Json<Vec<Pet>>, Error>
     where
         S: paperclip::v2::schema::Apiv2Schema + ToString,
     {
@@ -2030,13 +2062,13 @@ fn test_operations_documentation() {
     fn get_pets(
         _data: web::Data<String>,
         _q: web::Query<Params>,
-    ) -> impl Future<Output = Result<web::Json<Vec<Pet>>, ()>> {
+    ) -> impl Future<Output = Result<web::Json<Vec<Pet>>, Error>> {
         if true {
             // test for return in wrapper blocks (#75)
-            return futures::future::err(());
+            return futures::future::err(actix_web::error::ErrorInternalServerError(""));
         }
 
-        futures::future::err(())
+        futures::future::err(actix_web::error::ErrorInternalServerError(""))
     }
 
     /// Get pet info
@@ -2188,13 +2220,13 @@ fn test_operations_macro_attributes() {
     fn get_pets(
         _data: web::Data<String>,
         _q: web::Query<Params>,
-    ) -> impl Future<Output = Result<web::Json<Vec<Pet>>, ()>> {
+    ) -> impl Future<Output = Result<web::Json<Vec<Pet>>, Error>> {
         if true {
             // test for return in wrapper blocks (#75)
-            return futures::future::err(());
+            return futures::future::err(actix_web::error::ErrorInternalServerError(""));
         }
 
-        futures::future::err(())
+        futures::future::err(actix_web::error::ErrorInternalServerError(""))
     }
 
     run_and_check_app(
@@ -2416,6 +2448,7 @@ fn test_custom_extractor_empty_schema() {
     impl FromRequest for SomeUselessThing<String> {
         type Error = Error;
         type Future = Ready<Result<Self, Self::Error>>;
+        #[cfg(not(feature = "actix4"))]
         type Config = ();
 
         fn from_request(_req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
@@ -2713,6 +2746,7 @@ fn test_security_app() {
     impl FromRequest for AccessToken {
         type Error = Error;
         type Future = Ready<Result<Self, Self::Error>>;
+        #[cfg(not(feature = "actix4"))]
         type Config = ();
 
         fn from_request(_: &HttpRequest, _payload: &mut actix_web::dev::Payload) -> Self::Future {
@@ -2733,6 +2767,7 @@ fn test_security_app() {
     impl FromRequest for OAuth2Access {
         type Error = Error;
         type Future = Ready<Result<Self, Self::Error>>;
+        #[cfg(not(feature = "actix4"))]
         type Config = ();
 
         fn from_request(_: &HttpRequest, _payload: &mut actix_web::dev::Payload) -> Self::Future {
@@ -2747,6 +2782,7 @@ fn test_security_app() {
     impl FromRequest for PetScope {
         type Error = Error;
         type Future = Ready<Result<Self, Self::Error>>;
+        #[cfg(not(feature = "actix4"))]
         type Config = ();
 
         fn from_request(_: &HttpRequest, _payload: &mut actix_web::dev::Payload) -> Self::Future {
@@ -2901,7 +2937,7 @@ fn test_security_app() {
 fn test_method_macro() {
     #[get("/v0/pets")]
     #[api_v2_operation]
-    fn get_pets() -> impl Future<Output = Result<web::Json<Vec<Pet>>, ()>> {
+    fn get_pets() -> impl Future<Output = Result<web::Json<Vec<Pet>>, Error>> {
         futures::future::ready(Ok(web::Json(Default::default())))
     }
     #[put("/v0/pets/{name}")]
@@ -2909,17 +2945,17 @@ fn test_method_macro() {
     fn put_pet(
         _name: web::Path<String>,
         pet: web::Json<Pet>,
-    ) -> impl Future<Output = Result<web::Json<Pet>, ()>> {
+    ) -> impl Future<Output = Result<web::Json<Pet>, Error>> {
         futures::future::ready(Ok(pet))
     }
     #[post("/v0/pets")]
     #[api_v2_operation]
-    fn post_pet(pet: web::Json<Pet>) -> impl Future<Output = Result<web::Json<Pet>, ()>> {
+    fn post_pet(pet: web::Json<Pet>) -> impl Future<Output = Result<web::Json<Pet>, Error>> {
         futures::future::ready(Ok(pet))
     }
     #[delete("/v0/pets/{name}")]
     #[api_v2_operation]
-    fn delete_pet(_name: web::Path<String>) -> impl Future<Output = Result<web::Json<()>, ()>> {
+    fn delete_pet(_name: web::Path<String>) -> impl Future<Output = Result<web::Json<()>, Error>> {
         futures::future::ready(Ok(web::Json(())))
     }
 
@@ -3073,6 +3109,53 @@ fn test_method_macro() {
     );
 }
 
+#[cfg(feature = "actix4")]
+fn run_and_check_app<F, G, T, B, U>(factory: F, check: G) -> U
+where
+    F: Fn() -> App<T> + Clone + Send + Sync + 'static,
+    B: MessageBody + 'static,
+    T: ServiceFactory<
+            ServiceRequest,
+            Config = (),
+            Response = ServiceResponse<B>,
+            Error = Error,
+            InitError = (),
+        > + 'static,
+    G: Fn(String) -> U,
+{
+    let (tx, rx) = mpsc::channel();
+
+    let _ = thread::spawn(move || {
+        let sys = System::new("test");
+        for port in 3000..30000 {
+            if !PORTS.lock().insert(port) {
+                continue;
+            }
+
+            let addr = format!("127.0.0.1:{}", port);
+            let server = match HttpServer::new(factory.clone()).bind(&addr) {
+                Ok(srv) => {
+                    println!("Bound to {}", addr);
+                    srv
+                }
+                Err(_) => continue,
+            };
+
+            let s = server.run();
+            tx.send((s, addr)).unwrap();
+            sys.run().expect("system error?");
+            return;
+        }
+
+        unreachable!("No ports???");
+    });
+
+    let (_server, addr) = rx.recv().unwrap();
+    let ret = check(addr);
+    ret
+}
+
+#[cfg(not(feature = "actix4"))]
 fn run_and_check_app<F, G, T, B, U>(factory: F, check: G) -> U
 where
     F: Fn() -> App<T, B> + Clone + Send + Sync + 'static,
