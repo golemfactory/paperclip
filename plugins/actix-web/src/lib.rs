@@ -7,6 +7,9 @@ extern crate actix_web3 as actix_web;
 #[cfg(feature = "actix4")]
 extern crate actix_web4 as actix_web;
 
+#[cfg(feature = "actix-files3")]
+use actix_files3 as actix_files;
+
 #[cfg(feature = "swagger-ui")]
 use include_dir::{include_dir, Dir};
 
@@ -68,4 +71,18 @@ pub trait Mountable {
             .or_insert_with(Default::default);
         op_map.methods.extend(self.operations().into_iter());
     }
+}
+
+#[cfg(any(feature = "actix-files", feature = "actix-files3"))]
+impl Mountable for actix_files::Files {
+    fn path(&self) -> &str { "" }
+
+    /// Map of HTTP methods and the associated API operations.
+    fn operations(&mut self) -> BTreeMap<HttpMethod, DefaultOperationRaw> { BTreeMap::default() }
+
+    /// The definitions recorded by this object.
+    fn definitions(&mut self) -> BTreeMap<String, DefaultSchemaRaw> { BTreeMap::default() }
+
+    /// The security definitions recorded by this object.
+    fn security_definitions(&mut self) -> BTreeMap<String, SecurityScheme> { BTreeMap::default() }
 }
