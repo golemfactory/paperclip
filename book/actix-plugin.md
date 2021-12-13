@@ -23,6 +23,35 @@ serde = { version = "1.0", features = ["derive"] }
 Our `main.rs` looks like this:
 
 ```rust
+use actix_web::{App, HttpServer, Error, web::{self, Json}};
+use serde::{Serialize, Deserialize};
+
+// Mark containers (body, query, parameter, etc.) like so...
+#[derive(Serialize, Deserialize)]
+struct Pet {
+    name: String,
+    id: Option<i64>,
+}
+
+async fn echo_pet(body: Json<Pet>) -> Result<Json<Pet>, Error> {
+    Ok(body)
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    HttpServer::new(|| App::new()
+        .service(
+            web::resource("/pets")
+                .route(web::post().to(echo_pet))
+        )
+    ).bind("127.0.0.1:8080")?
+    .run().await
+}
+```
+
+Now, let's modify it to use the plugin!
+
+```rust
 use actix_web::{App, HttpServer, Error};
 use paperclip::actix::{
     // extension trait for actix_web::App and proc-macro attributes
@@ -138,7 +167,7 @@ curl http://localhost:8080/api/spec/v2
               "$ref": "#/definitions/Pet"
             }
           }
-        }
+        },
         "parameters": [{
             "in": "body",
             "name": "body",

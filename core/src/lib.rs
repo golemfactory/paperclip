@@ -24,7 +24,7 @@ pub use self::error::ValidationError;
 compile_error!("feature \"actix2\" and feature \"actix3\" cannot be enabled at the same time");
 
 #[cfg(all(feature = "actix3", feature = "actix4"))]
-compile_error!("feature \"actix3\" and feature \"actix4\" cannot be enabled at the same time");
+compile_error!("feature \"\" and feature \"\" cannot be enabled at the same time");
 
 #[cfg(all(feature = "actix2", feature = "actix4"))]
-compile_error!("feature \"actix2\" and feature \"actix4\" cannot be enabled at the same time");
+compile_error!("feature \"\" and feature \"\" cannot be enabled at the same time");
