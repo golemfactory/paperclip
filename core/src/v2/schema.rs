@@ -1,5 +1,14 @@
 //! Traits used for code and spec generation.
 
+#[cfg(feature = "actix-multipart3")]
+use actix_multipart3 as actix_multipart;
+
+#[cfg(feature = "actix-files3")]
+use actix_files3 as actix_files;
+
+#[cfg(feature = "actix-session3")]
+use actix_session3 as actix_session;
+
 use super::models::{
     DataType, DataTypeFormat, DefaultOperationRaw, DefaultSchemaRaw, Either, Resolvable,
     SecurityScheme,
@@ -186,15 +195,15 @@ impl_type_simple!(u64, DataType::Integer, DataTypeFormat::Int64);
 impl_type_simple!(u128, DataType::Integer, DataTypeFormat::Int64);
 impl_type_simple!(usize, DataType::Integer, DataTypeFormat::Int64);
 
-#[cfg(feature = "actix-multipart")]
+#[cfg(any(feature = "actix-multipart", feature = "actix-multipart3"))]
 impl_type_simple!(
     actix_multipart::Multipart,
     DataType::File,
     DataTypeFormat::Binary
 );
-#[cfg(feature = "actix-session")]
+#[cfg(any(feature = "actix-session", feature = "actix-session3"))]
 impl_type_simple!(actix_session::Session);
-#[cfg(feature = "actix-files")]
+#[cfg(any(feature = "actix-files", feature = "actix-files3"))]
 impl_type_simple!(
     actix_files::NamedFile,
     DataType::File,
